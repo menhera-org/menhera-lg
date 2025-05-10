@@ -1,2 +1,1 @@
-# generic-social-media-proto-react
-Generic social media UI prototyping with React
+# AS63806 looking glass frontend 
