@@ -10,7 +10,7 @@ import { ShortcutItem } from './components/ShortcutItem';
 import { checkValidity, consoleSlice, fetchConfig } from './ui/console';
 import { KeyboardEvent } from 'react';
 import { ScrollBox } from './components/ScrollBox';
-import { resolveAuto, formatDnsResponse, DnsResponse, getRouteAuto, doPing, doTraceroute, doMtr, formatRoute, getIpInfo, formatIpInfoList, getClientIpv4, getClientIpv6 } from './app/api';
+import { resolveAuto, formatDnsResponse, DnsResponse, getRouteAuto, doPing, doTraceroute, doMtr, formatRoute, getAddressInfo, formatIpInfoList, getClientIpv4, getClientIpv6 } from './app/api';
 
 export const App = () => {
   const drawerIsOpen = useSelector((state: RootState) => state.drawer.open);
@@ -414,8 +414,8 @@ const mtr = async (routerName: string, entries: string[]): Promise<string> => {
 
 const ipinfo = async (routerName: string, entries: string[]): Promise<string> => {
   const results = await Promise.all(entries.map(async (entry) => {
-    const infoList = await getIpInfo(routerName, entry);
-    const result = formatIpInfoList(entry, infoList);
+    const addressInfo = await getAddressInfo(routerName, entry);
+    const result = formatIpInfoList(addressInfo);
     return result;
   }));
 

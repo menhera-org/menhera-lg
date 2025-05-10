@@ -167,7 +167,7 @@ declare namespace doh {
     flags?: number | undefined;
     questions?: Question[] | undefined;
     answers?: Answer[] | undefined;
-    authority?: Answer[] | undefined;
+    authorities?: Answer[] | undefined;
     additional?: Answer[] | undefined;
   }
 

@@ -15,13 +15,13 @@ export interface DnsAnswer {
   name: string;
   ttl: number;
   data: string;
-  rcode: string;
 }
 
 export interface DnsResponse {
   rcode: string;
   questions: DnsQuestion[];
   answers: DnsAnswer[];
+  authorities: DnsAnswer[];
   id: number;
   time?: number;
   queryTime?: number;
@@ -80,17 +80,111 @@ export const resolveAuto = async (name: string) => {
   throw new Error("Invalid hostname or IP address");
 };
 
-export const resolveSimple = async (name: string) => {
+export interface DnsNameServerInfo {
+  name: string;
+  ipv4: string[];
+  ipv6: string[];
+}
+
+export interface DnsZoneInfo {
+  zoneName: string;
+  primaryNameServer: string; // from SOA
+  adminContact: string; // from SOA
+  serial: number; // from SOA
+  refresh: number; // from SOA
+  retry: number; // from SOA
+  expire: number; // from SOA
+  minimum: number; // from SOA
+  nameServers: DnsNameServerInfo[]; // from NS records
+}
+
+export const resolveZoneInfo = async (domainName: string) => {
+  const validity = checkValidity(domainName);
+  if (!validity.hostname) {
+    throw new Error("Invalid hostname");
+  }
+  const soaResult = await resolve(domainName, "SOA").catch((e) => ({} as DnsResponse));
+  const soa = soaResult?.answers?.filter((a) => a.type == 'SOA')[0] ?? soaResult?.authorities?.filter((a) => a.type == 'SOA')[0] ?? null;
+  const soaParts = soa?.data.split(" ") ?? [];
+  const zoneName = soa?.name ?? '';
+  const primaryNameServer = soaParts[0] ?? '';
+  const adminContact = soaParts[1] ?? '';
+  const serial = parseInt(soaParts[2] ?? '0', 10);
+  const refresh = parseInt(soaParts[3] ?? '0', 10);
+  const retry = parseInt(soaParts[4] ?? '0', 10);
+  const expire = parseInt(soaParts[5] ?? '0', 10);
+  const minimum = parseInt(soaParts[6] ?? '0', 10);
+  const nsResult = zoneName == '' ? {} as DnsResponse : await resolve(zoneName, "NS").catch((e) => ({} as DnsResponse));
+  const ns = nsResult?.answers?.filter((a) => a.type == 'NS') ?? [];
+  const nameServers: DnsNameServerInfo[] = [];
+  for (const nsRecord of ns) {
+    try {
+      const nsName = nsRecord.data;
+      const aResult = await resolve(nsName, "A").catch((e) => ({} as DnsResponse));
+      const aaaaResult = await resolve(nsName, "AAAA").catch((e) => ({} as DnsResponse));
+      const ipv4 = aResult?.answers?.filter((a) => a.type == 'A').map((a) => a.data) ?? [];
+      const ipv6 = aaaaResult?.answers?.filter((a) => a.type == 'AAAA').map((a) => a.data) ?? [];
+      nameServers.push({ name: nsName, ipv4, ipv6 });
+    } catch (e) {
+      console.error(`Error resolving NS record ${nsRecord.data}:`, e);
+    }
+  }
+
+  return {
+    zoneName,
+    primaryNameServer,
+    adminContact,
+    serial,
+    refresh,
+    retry,
+    expire,
+    minimum,
+    nameServers,
+  } as DnsZoneInfo;
+};
+
+export interface DnsFullResult {
+  name: string;
+  zone: DnsZoneInfo;
+  answers: { [type: string]: DnsAnswer[] };
+}
+
+export const resolveFull = async (domainName: string, types: string[]) => {
+  const dedupedTypes = [...new Set(types)];
+  const origAnswers = new Set<string>();
+  for (const type of dedupedTypes) {
+    const answers = (await resolve(domainName, type).catch((e) => ({} as DnsResponse)))?.answers ?? [] as DnsAnswer[];
+    for (const answer of answers) {
+      origAnswers.add(JSON.stringify(answer));
+    }
+  }
+
+  const zone = await resolveZoneInfo(domainName);
+
+  const answers: { [type: string]: DnsAnswer[] } = {};
+  for (const jsonAnswer of origAnswers) {
+    const answer = JSON.parse(jsonAnswer) as DnsAnswer;
+    const { type } = answer;
+    if (!answers[type]) {
+      answers[type] = [];
+    }
+    answers[type].push(answer);
+  }
+  return {
+    name: domainName,
+    zone,
+    answers,
+  } as DnsFullResult;
+};
+
+export const resolveFullAuto = async (name: string) => {
   const validity = checkValidity(name);
   if (validity.hostname) {
-    const a = await resolve(name, "A");
-    const aaaa = await resolve(name, "AAAA");
-    return { A: a.answers.filter(a => a.type == 'A').map(a => a.data), AAAA: aaaa.answers.filter(a => a.type == 'AAAA').map(a => a.data) };
+    return resolveFull(name, ["A", "AAAA"]);
   }
   if (validity.ipv4Address || validity.ipv6Address) {
     const reverseName = validity.ipv4Address ? buildReverseName4(name) : buildReverseName6(name);
-    const ptr = await resolve(reverseName, "PTR");
-    return { PTR: ptr.answers.filter(a => a.type == 'PTR').map(a => a.data) };
+    return resolveFull(reverseName, ["PTR"]);
   }
 
   throw new Error("Invalid hostname or IP address");
@@ -123,7 +217,6 @@ export const resolve = async (name: string, type: string) => {
       name: name,
       ttl: ttl,
       data: answer.data.toString(),
-      rcode,
     };
     return ans;
   });
@@ -132,6 +225,22 @@ export const resolve = async (name: string, type: string) => {
     rcode,
     questions,
     answers,
+    authorities: (packet.authorities ?? []).map((answer) => {
+      const { class: cls, type, name, ttl } = answer;
+      if (cls === undefined || type === undefined || name === undefined || ttl === undefined) {
+        throw new Error("Invalid answer format");
+      }
+      if (typeof cls !== "string" || typeof type !== "string" || typeof name !== "string" || typeof ttl !== "number") {
+        throw new Error("Invalid answer format");
+      }
+      return {
+        class: cls,
+        type: type,
+        name: name,
+        ttl: ttl,
+        data: answer.data.toString(),
+      } as DnsAnswer;
+    }),
     id: packet.id ?? 0,
     time: endTime,
     queryTime,
@@ -430,68 +539,114 @@ export interface Route extends RouteSummary {
   extCommunity: string[];
 }
 
-export interface AsInfo {
-  as_number: number;
+export interface BaseAddressInfo {
+  type: string;
+  value: string;
+}
+export interface IpAddressInfo extends BaseAddressInfo {
+  type: 'IPv4' | 'IPv6';
+  value: string;
+  prefixes: string[];
+  reverseHostname: string | null;
+  reverseHostnameAddresses: string[];
+  reverseZone: DnsZoneInfo | null;
+  as: AsInfo[];
+}
+
+export interface AsInfo extends BaseAddressInfo {
+  type: 'AS';
+  value: string;
   as_name: string;
   as_description: string;
   as_country: string;
 }
 
+export interface HostnameInfo extends BaseAddressInfo {
+  type: 'Hostname';
+  value: string;
+  ipAddresses: IpAddressInfo[];
+  zone: DnsZoneInfo | null;
+}
+
+export type AddressInfo = IpAddressInfo | AsInfo | HostnameInfo;
+
 export const getAsInfo = async (routerName: string, asn: number): Promise<AsInfo> => {
   const query = new URLSearchParams();
   query.append("asn", String(asn));
   const response = await callApi(routerName, "GET", "v1/as_info", query);
-  return response.result;
+  const result = response.result as AsInfo;
+  result.type = 'AS';
+  result.value = String(asn);
+  return result;
 };
 
-export interface IpInfo {
-  address: string;
-  prefixes: string[];
-  reverse_hostname: string | null;
-  reverse_hostname_addresses: string[];
-  as: AsInfo[];
-}
-
-export const getIpInfo = async (routerName: string, address: string): Promise<IpInfo[]> => {
-  const ipList: string[] = []; // IP addresses or prefixes
+export const getAddressInfo = async (routerName: string, address: string): Promise<AddressInfo> => {
   const validity = checkValidity(address);
   if (validity.hostname) {
-    const addresses = await resolveSimple(address);
-    for (const ip of addresses.A!) {
-      ipList.push(ip);
+    const ipList: string[] = []; // IP addresses or prefixes
+    const addresses = await resolveFullAuto(address);
+    for (const ip of addresses.answers.A ?? []) {
+      ipList.push(ip.data);
     }
-    for (const ip of addresses.AAAA!) {
-      ipList.push(ip);
+    for (const ip of addresses.answers.AAAA ?? []) {
+      ipList.push(ip.data);
     }
-  } else if (validity.ipv4Address || validity.ipv6Address) {
-    ipList.push(address);
-  } else if (validity.ipv4Prefix || validity.ipv6Prefix) {
-    ipList.push(address);
+
+    const ipAddresses = await Promise.all(ipList.map((ip) => getIpAddressInfo(routerName, ip)));
+    const zone = await resolveZoneInfo(address);
+    const hostnameInfo: HostnameInfo = {
+      type: 'Hostname',
+      value: address,
+      ipAddresses: ipAddresses,
+      zone: zone,
+    };
+
+    return hostnameInfo;
+  } else if (validity.ipv4Address || validity.ipv6Address || validity.ipv4Prefix || validity.ipv6Prefix) {
+    const ipAddressInfo = await getIpAddressInfo(routerName, address);
+    return ipAddressInfo;
+  } else if (validity.asn) {
+    const asn = Number(validity.value ?? address);
+    const asInfo = await getAsInfo(routerName, asn);
+    return asInfo;
   }
 
-  return Promise.all(ipList.map((ip) => getIpInfoSingle(routerName, ip)));
+  throw new Error("Invalid DNS name, IP address or ASN");
 };
 
-const getIpInfoSingle = async (routerName: string, ip: string): Promise<IpInfo> => {
-  const originAsns = await getOriginAsns(routerName, ip);
+const getIpAddressInfo = async (routerName: string, ip: string): Promise<IpAddressInfo> => {
   const validity = checkValidity(ip);
+  const originAsns = await getOriginAsns(routerName, ip);
+
   let reverseHostname: string | null = null;
   let reverseHostnameAddresses: string[] = [];
-  if (validity.ipv4Address || validity.ipv6Address) {
-    const ptrs = (await resolveSimple(ip)).PTR!;
-    if (ptrs.length > 0) {
-      reverseHostname = ptrs[0]!;
+  let reverseZone: DnsZoneInfo | null = null;
 
-      const reverseResult = await resolveSimple(reverseHostname!);
-      for (const ip of reverseResult.A!) {
-        if (!reverseHostnameAddresses.includes(ip)) {
-          reverseHostnameAddresses.push(ip);
+  let type: 'IPv4' | 'IPv6' = 'IPv4';
+  if (validity.ipv6Address || validity.ipv6Prefix) {
+    type = 'IPv6';
+  }
+
+  if (validity.ipv4Address || validity.ipv6Address) {
+    const resolved = await resolveFullAuto(ip);
+    reverseZone = resolved.zone;
+
+    if (resolved.answers.PTR && resolved.answers.PTR.length > 0) {
+      reverseHostname = resolved.answers.PTR[0]!.data;
+
+      const reverseResult = await resolveFullAuto(reverseHostname!);
+      if (reverseResult.answers.A) {
+        for (const ip of reverseResult.answers.A) {
+          if (!reverseHostnameAddresses.includes(ip.data)) {
+            reverseHostnameAddresses.push(ip.data);
+          }
         }
       }
-
-      for (const ip of reverseResult.AAAA!) {
-        if (!reverseHostnameAddresses.includes(ip)) {
-          reverseHostnameAddresses.push(ip);
+      if (reverseResult.answers.AAAA) {
+        for (const ip of reverseResult.answers.AAAA) {
+          if (!reverseHostnameAddresses.includes(ip.data)) {
+            reverseHostnameAddresses.push(ip.data);
+          }
         }
       }
     }
@@ -506,32 +661,79 @@ const getIpInfoSingle = async (routerName: string, ip: string): Promise<IpInfo> 
     }
   }
   return {
-    address: ip,
+    type,
+    value: ip,
     prefixes: prefixes,
-    reverse_hostname: reverseHostname,
-    reverse_hostname_addresses: reverseHostnameAddresses,
+    reverseHostname: reverseHostname,
+    reverseHostnameAddresses: reverseHostnameAddresses,
+    reverseZone: reverseZone,
     as: asInfos,
   };
 };
 
-export const formatIpInfoList = (input: string, ipInfoList: IpInfo[]) => {
-  let result = `IP Info for ${input}:\n`;
-  for (const ipInfo of ipInfoList) {
-    result += `\n  IP Address: ${ipInfo.address}\n`;
-    if (ipInfo.reverse_hostname) {
-      result += `  Reverse Hostname: ${ipInfo.reverse_hostname}\n`;
-      result += `  Reverse Hostname Addresses: ${ipInfo.reverse_hostname_addresses.join(", ")}\n`;
-    }
-    result += `  Prefixes: ${ipInfo.prefixes.join(", ")}\n`;
-    if (ipInfo.as.length > 0) {
-      result += `  AS Information:\n`;
-      const asInfoList = new Set(ipInfo.as.map((asInfo) => {
-        return `AS${asInfo.as_number} ${asInfo.as_name} ${asInfo.as_description} (${asInfo.as_country})`;
-      }));
-      for (const asInfo of asInfoList) {
-        result += `    Origin AS: ${asInfo}\n`;
+export const formatIpInfoList = (addressInfo: AddressInfo) => {
+  let result = `Info for ${addressInfo.value}:\n`;
+  const ipInfoList = [] as IpAddressInfo[];
+  const hostnameInfoList = [] as HostnameInfo[];
+  const asInfoList = [] as AsInfo[];
+  if (addressInfo.type == 'Hostname') {
+    const hostnameInfo = addressInfo as HostnameInfo;
+    hostnameInfoList.push(hostnameInfo);
+
+    for (const ipInfo of hostnameInfo.ipAddresses) {
+      ipInfoList.push(ipInfo);
+
+      for (const asInfo of ipInfo.as) {
+        asInfoList.push(asInfo);
       }
     }
+  } else if (addressInfo.type == 'IPv4' || addressInfo.type == 'IPv6') {
+    const ipInfo = addressInfo as IpAddressInfo;
+    ipInfoList.push(ipInfo);
+
+    for (const asInfo of ipInfo.as) {
+      asInfoList.push(asInfo);
+    }
+  } else if (addressInfo.type == 'AS') {
+    const asInfo = addressInfo as AsInfo;
+    asInfoList.push(asInfo);
+  }
+
+  if (hostnameInfoList.length > 0) {
+    result += `\n  Hostname Info:`;
+  }
+  for (const hostnameInfo of hostnameInfoList) {
+    result += `\n    Hostname: ${hostnameInfo.value}\n`;
+    result += `    Zone: ${hostnameInfo.zone?.zoneName ?? 'N/A'}\n`;
+    result += `    Name Servers:\n`;
+    for (const ns of hostnameInfo.zone?.nameServers ?? []) {
+      result += `      ${ns.name} (${ns.ipv4.concat(ns.ipv6).join(', ')})\n`;
+    }
+  }
+
+  if (ipInfoList.length > 0) {
+    result += `\n  IP Address Info:`;
+  }
+  for (const ipInfo of ipInfoList) {
+    result += `\n    IP Address: ${ipInfo.value}\n`;
+    if (ipInfo.reverseHostname) {
+      result += `    Reverse Hostname: ${ipInfo.reverseHostname}\n`;
+      result += `    Reverse Hostname Addresses: ${ipInfo.reverseHostnameAddresses.join(", ")}\n`;
+    }
+    result += `    Reverse Zone: ${ipInfo.reverseZone?.zoneName ?? 'N/A'}\n`;
+    result += `    Reverse Zone Name Servers:\n`;
+
+    for (const ns of ipInfo.reverseZone?.nameServers ?? []) {
+      result += `      ${ns.name} (${ns.ipv4.concat(ns.ipv6).join(', ')})\n`;
+    }
+    result += `    Prefixes: ${ipInfo.prefixes.join(", ")}\n`;
+  }
+
+  if (asInfoList.length > 0) {
+    result += `\n  AS Info:\n`;
+  }
+  for (const asInfo of [... new Set(asInfoList.map(asInfo => JSON.stringify(asInfo)))].map(asInfo => JSON.parse(asInfo) as AsInfo)) {
+    result += `    AS${asInfo.value} ${asInfo.as_name} ${asInfo.as_description} (${asInfo.as_country})\n`;
   }
   return result;
 };
