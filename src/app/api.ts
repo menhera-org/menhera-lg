@@ -234,11 +234,16 @@ export const getRoute = async (routerName: string, address: string) => {
   return convertRoute(response.result);
 };
 
-export const getOriginAsns = async (routerName: string, address: string): Promise<number[]> => {
+export interface RouteOrigin {
+  network: string;
+  asn: number;
+}
+
+export const getOriginAsns = async (routerName: string, address: string): Promise<RouteOrigin[]> => {
   const query = new URLSearchParams();
   query.append("address", address);
   const response = await callApi(routerName, "GET", "v1/bgp/json", query);
-  const originAsns: number[] = [];
+  const originAsns: RouteOrigin[] = [];
   for (const path of response.result.paths) {
     const asPathObj = path.aspath;
     if (asPathObj == null) {
@@ -248,13 +253,19 @@ export const getOriginAsns = async (routerName: string, address: string): Promis
     if (lastSegment.type == 'as-set') {
       for (const asn of lastSegment.list) {
         if (originAsns.indexOf(asn) == -1) {
-          originAsns.push(Number(asn));
+          originAsns.push({
+            network: response.result.prefix || '',
+            asn: Number(asn),
+          });
         }
       }
     } else {
       const lastAsn = lastSegment.list[lastSegment.list.length - 1];
       if (originAsns.indexOf(lastAsn) == -1) {
-        originAsns.push(Number(lastAsn));
+        originAsns.push({
+          network: response.result.prefix || '',
+          asn: Number(lastAsn),
+        });
       }
     }
   }
@@ -433,6 +444,7 @@ export const getAsInfo = async (routerName: string, asn: number): Promise<AsInfo
 
 export interface IpInfo {
   address: string;
+  prefixes: string[];
   reverse_hostname: string | null;
   reverse_hostname_addresses: string[];
   as: AsInfo[];
@@ -484,14 +496,16 @@ const getIpInfoSingle = async (routerName: string, ip: string): Promise<IpInfo> 
   }
 
   const asInfos: AsInfo[] = [];
+  const prefixes = originAsns.map((asn) => asn.network);
   for (const asn of originAsns) {
-    const asInfo = await getAsInfo(routerName, asn);
+    const asInfo = await getAsInfo(routerName, asn.asn);
     if (asInfo) {
       asInfos.push(asInfo);
     }
   }
   return {
     address: ip,
+    prefixes: prefixes,
     reverse_hostname: reverseHostname,
     reverse_hostname_addresses: reverseHostnameAddresses,
     as: asInfos,
@@ -506,6 +520,7 @@ export const formatIpInfoList = (input: string, ipInfoList: IpInfo[]) => {
       result += `  Reverse Hostname: ${ipInfo.reverse_hostname}\n`;
       result += `  Reverse Hostname Addresses: ${ipInfo.reverse_hostname_addresses.join(", ")}\n`;
     }
+    result += `  Prefixes: ${ipInfo.prefixes.join(", ")}\n`;
     if (ipInfo.as.length > 0) {
       result += `  AS Information:\n`;
       for (const asInfo of ipInfo.as) {
