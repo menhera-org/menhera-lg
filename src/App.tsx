@@ -1,6 +1,6 @@
 
 import React, { useEffect, useRef } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
+import { useSelector } from 'react-redux';
 import { RootState, useAppDispatch } from './app/store';
 import { drawerSlice } from './ui/drawer';
 

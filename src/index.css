@@ -153,6 +153,7 @@ input, button, textarea, select {
   display: flex;
   flex-direction: column;
   padding-block: 1rem;
+  padding-inline: .5rem;
 }
 
 #app-drawer {
