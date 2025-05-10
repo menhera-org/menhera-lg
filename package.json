@@ -1,0 +1,46 @@
+{
+  "name": "@menhera/generic-social-media-proto-react",
+  "version": "0.1.0",
+  "description": "Generic social media UI prototyping with React",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "webpack --mode production"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/metastable-void/generic-social-media-proto-react.git"
+  },
+  "author": "Menhera.org",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/metastable-void/generic-social-media-proto-react/issues"
+  },
+  "homepage": "https://github.com/metastable-void/generic-social-media-proto-react#readme",
+  "devDependencies": {
+    "@types/react": "^18.2.61",
+    "@types/react-dom": "^18.2.19",
+    "copy-webpack-plugin": "^12.0.2",
+    "css-loader": "^6.10.0",
+    "gh-pages": "^6.1.1",
+    "sass": "^1.71.1",
+    "sass-loader": "^14.1.1",
+    "style-loader": "^3.3.4",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.3.3",
+    "webpack": "^5.90.3",
+    "webpack-cli": "^5.1.4",
+    "webpack-dev-server": "^5.0.2"
+  },
+  "dependencies": {
+    "@reduxjs/toolkit": "^2.2.1",
+    "@types/dns-packet": "^5.6.5",
+    "dohjs": "^0.3.3",
+    "https-browserify": "^1.0.0",
+    "ipaddr.js": "^2.2.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-redux": "^9.1.0",
+    "stream-http": "^3.2.0"
+  }
+}
