@@ -251,17 +251,19 @@ export const getOriginAsns = async (routerName: string, address: string): Promis
     }
     const lastSegment = asPathObj.segments[asPathObj.segments.length - 1];
     if (lastSegment.type == 'as-set') {
-      for (const asn of lastSegment.list) {
-        if (originAsns.indexOf(asn) == -1) {
+      for (const lastAsn of lastSegment.list) {
+        const network = response.result.prefix || '';
+        if (!originAsns.find(asn => asn.asn == Number(lastAsn) && asn.network == network)) {
           originAsns.push({
             network: response.result.prefix || '',
-            asn: Number(asn),
+            asn: Number(lastAsn),
           });
         }
       }
     } else {
       const lastAsn = lastSegment.list[lastSegment.list.length - 1];
-      if (originAsns.indexOf(lastAsn) == -1) {
+      const network = response.result.prefix || '';
+      if (!originAsns.find(asn => asn.asn == Number(lastAsn) && asn.network == network)) {
         originAsns.push({
           network: response.result.prefix || '',
           asn: Number(lastAsn),
@@ -523,8 +525,11 @@ export const formatIpInfoList = (input: string, ipInfoList: IpInfo[]) => {
     result += `  Prefixes: ${ipInfo.prefixes.join(", ")}\n`;
     if (ipInfo.as.length > 0) {
       result += `  AS Information:\n`;
-      for (const asInfo of ipInfo.as) {
-        result += `    Origin AS: AS${asInfo.as_number} ${asInfo.as_name} ${asInfo.as_description} (${asInfo.as_country})\n`;
+      const asInfoList = new Set(ipInfo.as.map((asInfo) => {
+        return `AS${asInfo.as_number} ${asInfo.as_name} ${asInfo.as_description} (${asInfo.as_country})`;
+      }));
+      for (const asInfo of asInfoList) {
+        result += `    Origin AS: ${asInfo}\n`;
       }
     }
   }
