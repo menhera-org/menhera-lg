@@ -536,3 +536,27 @@ export const formatIpInfoList = (input: string, ipInfoList: IpInfo[]) => {
   return result;
 };
 
+export const getClientIpv4 = async (): Promise<string> => {
+  const res = await fetch("https://v4.ip.menhera.org/");
+  if (!res.ok) {
+    throw new Error(`HTTP error! status: ${res.status}`);
+  }
+  const data = await res.json();
+  if (data && data.ip) {
+    return data.ip;
+  }
+  throw new Error("Invalid response from API");
+};
+
+export const getClientIpv6 = async (): Promise<string> => {
+  const res = await fetch("https://v6.ip.menhera.org/");
+  if (!res.ok) {
+    throw new Error(`HTTP error! status: ${res.status}`);
+  }
+  const data = await res.json();
+  if (data && data.ip) {
+    return data.ip;
+  }
+  throw new Error("Invalid response from API");
+};
+

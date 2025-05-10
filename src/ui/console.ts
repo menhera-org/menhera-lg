@@ -128,6 +128,8 @@ export const consoleSlice = createSlice({
     commandName: '',
     config: {} as unknown as Config,
     selectedRouter: '',
+    clientIpv4: '',
+    clientIpv6: '',
   },
 
   reducers: {
@@ -404,6 +406,16 @@ export const consoleSlice = createSlice({
     setSelectedRouter(state, action) {
       console.log('setSelectedRouter', action.payload.router);
       state.selectedRouter = action.payload.router;
+    },
+
+    setClientIpv4(state, action) {
+      console.log('setClientIpv4', action.payload.ipv4);
+      state.clientIpv4 = action.payload.ipv4;
+    },
+
+    setClientIpv6(state, action) {
+      console.log('setClientIpv6', action.payload.ipv6);
+      state.clientIpv6 = action.payload.ipv6;
     },
   },
 

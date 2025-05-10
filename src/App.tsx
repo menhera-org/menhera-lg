@@ -10,7 +10,7 @@ import { ShortcutItem } from './components/ShortcutItem';
 import { checkValidity, consoleSlice, fetchConfig } from './ui/console';
 import { KeyboardEvent } from 'react';
 import { ScrollBox } from './components/ScrollBox';
-import { resolveAuto, formatDnsResponse, DnsResponse, getRouteAuto, doPing, doTraceroute, doMtr, formatRoute, getIpInfo, formatIpInfoList } from './app/api';
+import { resolveAuto, formatDnsResponse, DnsResponse, getRouteAuto, doPing, doTraceroute, doMtr, formatRoute, getIpInfo, formatIpInfoList, getClientIpv4, getClientIpv6 } from './app/api';
 
 export const App = () => {
   const drawerIsOpen = useSelector((state: RootState) => state.drawer.open);
@@ -25,9 +25,25 @@ export const App = () => {
   const loading = useSelector((state: RootState) => state.console.loading);
   const config = useSelector((state: RootState) => state.console.config);
   const selectedRouter = useSelector((state: RootState) => state.console.selectedRouter);
+  const clientIpv4 = useSelector((state: RootState) => state.console.clientIpv4);
+  const clientIpv6 = useSelector((state: RootState) => state.console.clientIpv6);
   const dispatch = useAppDispatch();
   const mainRef = useRef<HTMLDivElement>(null);
   const commandRef = useRef<HTMLSelectElement>(null);
+
+  useEffect(() => {
+    getClientIpv4().then((ipv4) => {
+      dispatch(consoleSlice.actions.setClientIpv4({ ipv4 }));
+    }).catch((e) => {
+      dispatch(consoleSlice.actions.setClientIpv4({ ipv4: '' }));
+    });
+
+    getClientIpv6().then((ipv6) => {
+      dispatch(consoleSlice.actions.setClientIpv6({ ipv6 }));
+    }).catch((e) => {
+      dispatch(consoleSlice.actions.setClientIpv6({ ipv6: '' }));
+    });
+  }, []);
 
   useEffect(() => {
     if (config.routers == null || Object.keys(config.routers).length === 0 && !loading) {
@@ -253,6 +269,9 @@ export const App = () => {
           <p>This service is provided for informational purposes only. Any automated use of the service is prohibited.</p>
           <p>Access to this service is logged and monitored.</p>
           <p>By using this service, you agree to the above terms.</p>
+          <h2>Your IP address</h2>
+          <p>IPv4: {clientIpv4}</p>
+          <p>IPv6: {clientIpv6}</p>
         </div>
         <div id="console-history">{
           consoleHistory.map((ent, i) => {
