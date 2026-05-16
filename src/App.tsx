@@ -332,14 +332,19 @@ export const App = () => {
       <div id="app-overlay" onClick={() => dispatch(drawerSlice.actions.closeDrawer())}></div>
       <div id="app-drawer">
         <div id="app-drawer-shortcuts">
-          <ShortcutItem selected={true} href="/" icon="public" text="LG" />
-          <ShortcutItem selected={false} href="https://www.nc.menhera.org/" icon="people" text="NOC" />
+          <ShortcutItem selected={false} href="https://www.menhera.or.jp/" icon="business" text="CORP" />
+          <ShortcutItem selected={false} href="https://www.menhera.ad.jp/" icon="public" text="NOC" />
+          <ShortcutItem selected={true} href="/" icon="search" text="LG" />
+          <ShortcutItem selected={false} href="https://www.menhera.org/" icon="work" text="PROJ" />
         </div>
         <div id="app-drawer-navigation">
           <h1 id="app-drawer-heading">AS63806 Looking Glass</h1>
           <ul>
             <li>
-              <a href="https://www.peeringdb.com/net/34545" target="_blank" rel="noreferrer">PeeringDB</a>
+              <a href="https://www.peeringdb.com/net/34545" target="_blank">PeeringDB</a>
+              <a href="https://bgp.tools/as/63806" target="_blank" rel="noreferrer">BGP.tools</a>
+              <a href="https://atlas.ripe.net/probes/7433" target="_blank">RIPE Atlas</a>
+              <a href="https://map.ring.nlnog.net/?node=1325" target="_blank">NLNOG RING node</a>
             </li>
           </ul>
         </div>
