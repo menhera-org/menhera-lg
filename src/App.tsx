@@ -342,8 +342,14 @@ export const App = () => {
           <ul>
             <li>
               <a href="https://www.peeringdb.com/net/34545" target="_blank">PeeringDB</a>
+            </li>
+            <li>
               <a href="https://bgp.tools/as/63806" target="_blank" rel="noreferrer">BGP.tools</a>
+            </li>
+            <li>
               <a href="https://atlas.ripe.net/probes/7433" target="_blank">RIPE Atlas</a>
+            </li>
+            <li>
               <a href="https://map.ring.nlnog.net/?node=1325" target="_blank">NLNOG RING node</a>
             </li>
           </ul>
