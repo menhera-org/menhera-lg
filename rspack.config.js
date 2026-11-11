@@ -1,5 +1,5 @@
 const path = require('path');
-const CopyPlugin = require('copy-webpack-plugin');
+const { rspack } = require('@rspack/core');
 
 module.exports = {
   entry: './src/index.tsx',
@@ -9,17 +9,20 @@ module.exports = {
     rules: [
       {
         test: /\.tsx?$/,
-        use: 'ts-loader',
-        exclude: /node_modules/,
-      },
-      {
-        test: /\.scss$/,
-        use: ['style-loader', 'css-loader', 'sass-loader'],
+        loader: 'builtin:swc-loader',
+        options: {
+          jsc: {
+            parser: { syntax: 'typescript', tsx: true },
+            target: 'es2021',
+          },
+        },
         exclude: /node_modules/,
       },
       {
         test: /\.css$/,
-        use: ['style-loader', 'css-loader'],
+        type: 'css',
+        // inject <style> at runtime like style-loader did, so public/index.html needs no <link>
+        parser: { exportType: 'style' },
         exclude: /node_modules/,
       },
     ],
@@ -37,7 +40,7 @@ module.exports = {
     path: path.resolve(__dirname, 'dist'),
   },
   plugins: [
-    new CopyPlugin({
+    new rspack.CopyRspackPlugin({
       patterns: [
         {
           from: 'public'
