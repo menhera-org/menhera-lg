@@ -1,12 +1,12 @@
 {
   "routers": {
-    "er0111": {
-      "name": "er0111",
-      "description": "er0111 (Tsuchiura)"
+    "lg0471": {
+      "name": "lg0471",
+      "description": "lg0471 (Otemachi)"
     },
-    "er0112": {
-      "name": "er0112",
-      "description": "er0112 (Tsuchiura)"
+    "lg0171": {
+      "name": "lg0171",
+      "description": "lg0171 (Tsuchiura)"
     }
   }
 }
